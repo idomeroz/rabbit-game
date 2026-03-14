@@ -101,6 +101,7 @@
             box-sizing: border-box;
             z-index: 100; /* הועלה ל-100 כדי שיהיה מעל הכל */
             pointer-events: none; /* Only buttons should catch events */
+            direction: ltr; /* כופה כיוון משמאל לימין מוחלט כדי למנוע היפוך באייפונים/שפות שונות */
         }
         .control-group {
             display: flex;
@@ -153,8 +154,8 @@
     <!-- הועבר פנימה לתוך ה-gameContainer כדי שיופיע מעל הקנבס -->
     <div id="mobileControls" class="hidden">
         <div class="control-group">
-            <div id="btnRight" class="d-btn">➡️</div>
             <div id="btnLeft" class="d-btn">⬅️</div>
+            <div id="btnRight" class="d-btn">➡️</div>
         </div>
         <div class="control-group">
             <div id="btnJump" class="d-btn" style="width: 80px; font-size: 24px;">קפוץ</div>
