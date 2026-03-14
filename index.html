@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>משחק הארנב</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #74ebd5 0%, #9face6 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+        #gameContainer {
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            border-radius: 15px;
+            overflow: hidden;
+            background: linear-gradient(to bottom, #87CEEB, #E0F6FF);
+        }
+        canvas {
+            display: block;
+        }
+        #ui {
+            position: absolute;
+            top: 15px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 22px;
+            font-weight: bold;
+            color: #2c3e50;
+            text-shadow: 2px 2px 4px rgba(255,255,255,0.8);
+            pointer-events: none;
+            z-index: 10;
+        }
+        #scoreDisplay { flex: 1; text-align: right; }
+        #itemsDisplay { flex: 1; text-align: center; display: flex; flex-direction: column; gap: 5px; color: #c0392b; }
+        #levelDisplay { flex: 1; text-align: left; }
+        
+        .screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            z-index: 20;
+            transition: opacity 0.3s;
+        }
+        h1 { color: #e67e22; margin-bottom: 10px; font-size: 36px; text-shadow: 1px 1px 2px rgba(0,0,0,0.1); }
+        .creator-name { font-size: 16px; color: #8e44ad; font-weight: bold; margin-top: -5px; margin-bottom: 20px; text-shadow: 1px 1px 1px rgba(255,255,255,0.8); }
+        p { font-size: 18px; color: #34495e; margin-bottom: 25px; line-height: 1.5; }
+        button {
+            padding: 12px 25px;
+            font-size: 20px;
+            font-weight: bold;
+            background-color: #e67e22;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(230, 126, 34, 0.4);
+            transition: all 0.2s ease;
+            margin: 10px;
+        }
+        button:hover { 
+            background-color: #d35400; 
+            transform: translateY(-3px);
+            box-shadow: 0 6px 15px rgba(230, 126, 34, 0.5);
+        }
+        button:active {
+            transform: translateY(1px);
+        }
+        .buttons-row {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div id="gameContainer">
+    <div id="ui">
+        <div id="scoreDisplay">גזרים: 0</div>
+        <div id="itemsDisplay">
+            <div id="parachuteDisplay"></div>
+            <div id="fishDisplay" style="color: #2980b9;"></div>
+        </div>
+        <div id="levelDisplay">שלב: 1</div>
+    </div>
+    
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    
+    <div id="startScreen" class="screen">
+        <h1>קפיצות הארנב 🐇</h1>
+        <p class="creator-name">נוצר על ידי אלון מרוז</p>
+        <p>
+            השתמש בחצים: ⬅️ ימינה/שמאלה ➡️<br>
+            וכדי לקפוץ לחץ על: <b>[רווח]</b>
+            <br><br>
+            אסוף את הגזרים 🥕<br>
+            היזהר מהחתולים 🐈! אל תיגע בהם.<br>
+            אסוף דג 🐟 כדי להגן על עצמך מחתול פעם אחת!<br>
+            וטפס למעלה עד לגזר הזהב! 🏆
+        </p>
+        <button id="startBtn">התחל משחק</button>
+    </div>
+
+    <div id="gameOverScreen" class="screen hidden">
+        <h1 id="gameOverTitle">אוי לא! 😢</h1>
+        <p id="gameOverText">הארנב נפל למטה...</p>
+        <div class="buttons-row">
+            <button id="restartLevelBtn">נסה שוב את השלב</button>
+            <button id="restartBtn">התחל מההתחלה</button>
+        </div>
+    </div>
+
+    <div id="levelClearScreen" class="screen hidden">
+        <h1>כל הכבוד! 🌟</h1>
+        <p>הגעת לגזר הזהב והשלמת את השלב!</p>
+        <button id="nextLevelBtn">לשלב הבא</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // UI Elements
+    const startScreen = document.getElementById('startScreen');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const levelClearScreen = document.getElementById('levelClearScreen');
+    const scoreDisplay = document.getElementById('scoreDisplay');
+    const levelDisplay = document.getElementById('levelDisplay');
+    const parachuteDisplay = document.getElementById('parachuteDisplay');
+    const fishDisplay = document.getElementById('fishDisplay');
+    const gameOverTitle = document.getElementById('gameOverTitle');
+    const gameOverText = document.getElementById('gameOverText');
+
+    // Button Events
+    document.getElementById('startBtn').addEventListener('click', startGame);
+    document.getElementById('restartBtn').addEventListener('click', startGame);
+    document.getElementById('restartLevelBtn').addEventListener('click', restartLevel);
+    document.getElementById('nextLevelBtn').addEventListener('click', nextLevel);
+
+    // Game Variables
+    let gameState = 'START'; // START, PLAYING, GAMEOVER, LEVELCLEAR
+    let score = 0;
+    let levelStartScore = 0;
+    let level = 1;
+    let animationId;
+    
+    let hasParachute = false;
+    let isParachuting = false;
+    let hasFish = false;
+    
+    // Input
+    const keys = { right: false, left: false, space: false };
+    
+    window.addEventListener('keydown', (e) => {
+        if (e.code === 'ArrowRight') keys.right = true;
+        if (e.code === 'ArrowLeft') keys.left = true;
+        if (e.code === 'Space') {
+            keys.space = true;
+            if (gameState === 'PLAYING') e.preventDefault(); // מניעת גלילת הדף
+        }
+    });
+    
+    window.addEventListener('keyup', (e) => {
+        if (e.code === 'ArrowRight') keys.right = false;
+        if (e.code === 'ArrowLeft') keys.left = false;
+        if (e.code === 'Space') keys.space = false;
+    });
+
+    // Game Objects
+    let player = {};
+    let platforms = [];
+    let carrots = [];
+    let parachutes = [];
+    let fishes = [];
+    let goldenCarrot = {};
+
+    function startGame() {
+        score = 0;
+        levelStartScore = 0;
+        level = 1;
+        hasParachute = false;
+        isParachuting = false;
+        hasFish = false;
+        startScreen.classList.add('hidden');
+        gameOverScreen.classList.add('hidden');
+        levelClearScreen.classList.add('hidden');
+        initLevel();
+        gameState = 'PLAYING';
+        if (animationId) cancelAnimationFrame(animationId);
+        update();
+    }
+
+    function restartLevel() {
+        score = levelStartScore;
+        hasParachute = false;
+        isParachuting = false;
+        hasFish = false;
+        gameOverScreen.classList.add('hidden');
+        initLevel();
+        gameState = 'PLAYING';
+        if (animationId) cancelAnimationFrame(animationId);
+        update();
+    }
+
+    function nextLevel() {
+        level++;
+        levelStartScore = score;
+        isParachuting = false;
+        levelClearScreen.classList.add('hidden');
+        initLevel();
+        gameState = 'PLAYING';
+        if (animationId) cancelAnimationFrame(animationId);
+        update();
+    }
+
+    function initLevel() {
+        scoreDisplay.innerText = `גזרים: ${score}`;
+        levelDisplay.innerText = `שלב: ${level}`;
+        parachuteDisplay.innerText = hasParachute ? '🪂 זמין' : '';
+        fishDisplay.innerText = hasFish ? '🐟 חסין מחתול' : '';
+        
+        // Setup Player
+        player = {
+            x: canvas.width / 2 - 15,
+            y: canvas.height - 100,
+            width: 30,
+            height: 30,
+            vx: 0,
+            vy: 0,
+            speed: 3.0, 
+            jumpPower: -8.5, // הוקטן שוב כדי להתאים לכוח משיכה נמוך מאוד
+            gravity: 0.25, // כוח משיכה מאוד נמוך (ריחוף איטי וארוך יותר)
+            grounded: false
+        };
+        
+        platforms = [];
+        carrots = [];
+        parachutes = [];
+        fishes = [];
+        
+        // Ground platform
+        platforms.push({ x: 0, y: canvas.height - 30, width: canvas.width, height: 30, isGround: true, isCat: false });
+        
+        const numPlatforms = 8 + (level * 3);
+        let currentY = canvas.height - 85; 
+        let lastPlatformX = canvas.width / 2 - 50; 
+        let lastPlatformWidth = canvas.width;
+        
+        // מקסימום מרחק תזוזה אופקי אפשרי בזמן קפיצה חדש
+        // זמן אוויר משוער: (8.5 * 2) / 0.25 ≈ 68 פריימים
+        // speed = 3.0 -> מרחק אופקי תיאורטי: 3 * 68 = 204. נגדיר 160 לבטיחות.
+        const maxJumpDistanceX = 160; 
+
+        for (let i = 0; i < numPlatforms; i++) {
+            let pWidth = Math.max(50, 100 - (level * 2) - Math.random() * 20);
+            
+            // חישוב טווח ה-X המותר לקפיצה מהמשטח הקודם (כולל משטח העזר אם היה)
+            // כדי לוודא שאפשר להגיע אליו אופקית
+            let minX = Math.max(0, lastPlatformX - maxJumpDistanceX + pWidth/2);
+            let maxX = Math.min(canvas.width - pWidth, lastPlatformX + lastPlatformWidth + maxJumpDistanceX - pWidth/2);
+            let pX = minX + Math.random() * (maxX - minX);
+
+            let isCat = false;
+            // חתול יכול להופיע רק משלב 2 ומעלה, ולא במשטח הראשון או האחרון
+            if (level >= 2 && i > 0 && i < numPlatforms - 1 && Math.random() < 0.25) {
+                isCat = true;
+                
+                // נוודא שפלטפורמת החתול לא תהיה בדיוק מעל הפלטפורמה הקודמת
+                // כדי למנוע חסימה מוחלטת של קפיצה אנכית למעלה
+                // אם נוצר חפיפה משמעותית עם המשטח הקודם בציר X
+                let buffer = 15; // מרווח שהחתול חייב להיות בו מחוץ למשטח הקודם
+                let overlap = (pX < lastPlatformX + lastPlatformWidth + buffer) && 
+                              (pX + pWidth > lastPlatformX - buffer);
+                
+                if (overlap) {
+                    // ננסה להזיז משמעותית ימינה או שמאלה
+                    if (lastPlatformX > canvas.width / 2) {
+                         // המשטח הקודם ימינה, נשים את החתול מספיק שמאלה
+                         pX = Math.max(0, lastPlatformX - pWidth - buffer - 10);
+                    } else {
+                         // המשטח הקודם שמאלה, נשים את החתול מספיק ימינה
+                         pX = Math.min(canvas.width - pWidth, lastPlatformX + lastPlatformWidth + buffer + 10);
+                    }
+                }
+            }
+            
+            // גובה הקפיצה האנכי המקסימלי החדש
+            // (10^2) / (2 * 0.35) = 142 פיקסלים.
+            // ניקח טווח ביטחון קצת יותר קטן щоб לא יהיה קשה מדי (עד 95 פיקסלים בערך)
+            let gap = isCat ? (40 + Math.random() * 25) : (60 + Math.random() * 25 + (level * 1.5));
+            gap = Math.min(95, gap); 
+            
+            currentY -= gap;
+
+            platforms.push({ x: pX, y: currentY, width: pWidth, height: 15, isGround: false, isCat: isCat });
+            
+            // גזר
+            if (i < numPlatforms - 1 && !isCat && Math.random() > 0.6) {
+                carrots.push({ 
+                    x: pX + pWidth / 2, 
+                    y: currentY - 20, 
+                    radius: 12, 
+                    collected: false 
+                });
+            }
+            
+            // אם המשטח הנוכחי הוא חתול, נוסיף משטח עזר קטן ובטוח קצת מעליו 
+            // או קצת לצידו כדי לאפשר לעקוף אותו
+            if (isCat) {
+                let helperWidth = 40; // משטח עזר קטן
+                // נהפוך את משטח העזר לקל יותר - שימוקם בדיוק בצד שיאפשר מעבר בטוח
+                // קצת יותר גבוה מהחתול כדי לאפשר לעבור "מעל ומסביב"
+                let helperY = currentY - 35; 
+                
+                let helperX;
+                // נשים את משטח העזר במרחק קטן מהחתול
+                if (pX > canvas.width / 2) {
+                    helperX = pX - helperWidth - 40; // שמאלה מהחתול
+                } else {
+                    helperX = pX + pWidth + 40; // ימינה מהחתול
+                }
+                
+                // נוודא שhelperX בתוך המסך
+                helperX = Math.max(0, Math.min(helperX, canvas.width - helperWidth));
+
+                platforms.push({ x: helperX, y: helperY, width: helperWidth, height: 15, isGround: false, isCat: false });
+                
+                lastPlatformX = helperX;
+                lastPlatformWidth = helperWidth;
+                
+                // המשטח הבא צריך להמשיך מהגובה של במת העזר
+                currentY = helperY;
+            } else {
+                lastPlatformX = pX;
+                lastPlatformWidth = pWidth;
+            }
+        }
+
+        // המשטח האחרון - להגדיל ולא פלטפורמה של חתול
+        const topPlatform = platforms[platforms.length - 1];
+        topPlatform.isCat = false;
+        topPlatform.width = 160;
+        topPlatform.x = (canvas.width - topPlatform.width) / 2; // ממורכז
+        
+        goldenCarrot = {
+            x: topPlatform.x + topPlatform.width / 2,
+            y: topPlatform.y - 60, // גזר גדול צריך להיות קצת יותר גבוה
+            radius: 35
+        };
+
+        // מצנח וסיכוי לדג
+        let safePlats = platforms.filter(p => !p.isGround && !p.isCat && p !== platforms[platforms.length - 1]);
+        
+        // מצנח במקרה של 40% מהפעמים (יכול להיות גם בשלב 1)
+        if (Math.random() < 0.4 && !hasParachute && safePlats.length > 0) {
+            // נעתיק ושנשמור את אינדקס למקרה שנרצה עוד משהו
+            let pIndex = Math.floor(Math.random() * safePlats.length);
+            let targetPlat = safePlats[pIndex];
+            parachutes.push({
+                x: targetPlat.x + targetPlat.width / 2,
+                y: targetPlat.y - 30,
+                radius: 15,
+                collected: false
+            });
+            // נסיר מהרשימה כדי לא לשים גם דג על אותו משטח
+            safePlats.splice(pIndex, 1);
+        }
+
+        // דג מגן (מתחיל משלב 2 יחד עם חתולים) בסבירות של 50%
+        if (level >= 2 && Math.random() < 0.5 && !hasFish && safePlats.length > 0) {
+            let targetPlat = safePlats[Math.floor(Math.random() * safePlats.length)];
+            fishes.push({
+                x: targetPlat.x + targetPlat.width / 2,
+                y: targetPlat.y - 30,
+                radius: 15,
+                collected: false
+            });
+        }
+    }
+
+    function gameOver(reason) {
+        gameState = 'GAMEOVER';
+        if (reason === 'cat') {
+            gameOverTitle.innerText = "אאוץ'! 🙀";
+            gameOverText.innerText = "החתול תפס אותך...";
+        } else {
+            gameOverTitle.innerText = "אוי לא! 😢";
+            gameOverText.innerText = "הארנב נפל למטה...";
+        }
+        gameOverScreen.classList.remove('hidden');
+    }
+
+    function update() {
+        if (gameState !== 'PLAYING') return;
+
+        // UI updates
+        parachuteDisplay.innerText = isParachuting ? '🪂 בצניחה...' : (hasParachute ? '🪂 זמין' : '');
+        fishDisplay.innerText = hasFish ? '🐟 מגן חתול זמין' : '';
+
+        // --- Physics & Movement ---
+        if (isParachuting) {
+            player.vy = 1.5; // נפילה קבועה ואיטית
+        } else {
+            player.vy += player.gravity; // כוח כבידה
+        }
+        player.y += player.vy;
+        
+        if (keys.right) player.vx = player.speed;
+        else if (keys.left) player.vx = -player.speed;
+        else player.vx *= 0.8; 
+        
+        player.x += player.vx;
+        
+        if (player.x > canvas.width) player.x = -player.width;
+        if (player.x + player.width < 0) player.x = canvas.width;
+
+        // --- Collisions with Platforms & Cats ---
+        player.grounded = false;
+        let hitCat = false;
+        let catPlatformHit = null;
+
+        for (let p of platforms) {
+            if (p.isCat) {
+                // התנגשות רגילה פשוטה עם חתול מכל כיוון
+                if (player.x < p.x + p.width - 5 && 
+                    player.x + player.width > p.x + 5 && 
+                    player.y < p.y + p.height - 5 && 
+                    player.y + player.height > p.y + 5) {
+                    hitCat = true;
+                    catPlatformHit = p;
+                }
+            } else {
+                // התנגשות עם משטח רגיל מלמעלה בלבד
+                if (player.vy > 0 && 
+                    player.y + player.height >= p.y && 
+                    player.y + player.height <= p.y + p.height + player.vy &&
+                    player.x + player.width > p.x && 
+                    player.x < p.x + p.width) {
+                    
+                    player.grounded = true;
+                    player.vy = 0;
+                    player.y = p.y - player.height;
+                    isParachuting = false; // ברגע שנוחתים, מפסיקים לצנוח
+                }
+            }
+        }
+
+        if (hitCat && catPlatformHit) {
+            // אם פגע בחתול אך יש לו מגן דג
+            if (hasFish) {
+                // הדג נאכל והוא ניצל 
+                hasFish = false;
+                // החתול עצמו נעלם מהפלטפורמה (הפלטפורמה הופכת לשטוחה ובטוחה מעתה)
+                catPlatformHit.isCat = false;
+                
+                // קפיצה קלה כדי לא להיתקע
+                player.vy = -6; 
+                player.grounded = false;
+                
+            } else {
+                gameOver('cat');
+                return;
+            }
+        }
+        
+        // --- Jumping ---
+        if (keys.space && player.grounded) {
+            player.vy = player.jumpPower;
+        }
+
+        // --- Camera Scrolling ---
+        // עליה למעלה (התקדמות במשחק)
+        if (player.y < canvas.height / 2 && !isParachuting) {
+            let diff = (canvas.height / 2) - player.y;
+            player.y += diff;
+            
+            for (let p of platforms) p.y += diff;
+            for (let c of carrots) c.y += diff;
+            for (let p of parachutes) p.y += diff;
+            for (let f of fishes) f.y += diff;
+            goldenCarrot.y += diff;
+        }
+        
+        // ירידה למטה (צניחה) 
+        // כשהארנב מגיע למטה מדי והוא צונח, נגלול את העולם למעלה כדי שיראה את הדרך חזרה
+        if (isParachuting && player.y > canvas.height / 2) {
+            // נוודא שאנחנו לא גוללים מתחת לרצפה
+            // הרצפה היא platforms[0]. אם היא נמצאת קרוב מדי לקצה המסך ננעל את הגלילה
+            let ground = platforms[0];
+            if (ground.y > canvas.height - 30) {
+                 // הרצפה עמוק למטה עדיין, נגלול
+                 let diff = player.y - (canvas.height / 2);
+                 player.y -= diff; // משאיר את הארנב באמצע
+                 
+                 for (let p of platforms) p.y -= diff;
+                 for (let c of carrots) c.y -= diff;
+                 for (let p of parachutes) p.y -= diff;
+                 for (let f of fishes) f.y -= diff;
+                 goldenCarrot.y -= diff;
+            }
+        }
+
+        // --- Collectables (Carrots) ---
+        for (let c of carrots) {
+            if (!c.collected) {
+                let distX = Math.abs((player.x + player.width/2) - c.x);
+                let distY = Math.abs((player.y + player.height/2) - c.y);
+                
+                if (distX < player.width/2 + c.radius && distY < player.height/2 + c.radius) {
+                    c.collected = true;
+                    score++;
+                    scoreDisplay.innerText = `גזרים: ${score}`;
+                }
+            }
+        }
+
+        // --- Collectables (Parachute) ---
+        for (let p of parachutes) {
+            if (!p.collected) {
+                let distX = Math.abs((player.x + player.width/2) - p.x);
+                let distY = Math.abs((player.y + player.height/2) - p.y);
+                if (distX < player.width/2 + p.radius && distY < player.height/2 + p.radius) {
+                    p.collected = true;
+                    hasParachute = true;
+                }
+            }
+        }
+        
+        // --- Collectables (Fish) ---
+        for (let f of fishes) {
+            if (!f.collected) {
+                let distX = Math.abs((player.x + player.width/2) - f.x);
+                let distY = Math.abs((player.y + player.height/2) - f.y);
+                if (distX < player.width/2 + f.radius && distY < player.height/2 + f.radius) {
+                    f.collected = true;
+                    hasFish = true;
+                }
+            }
+        }
+        
+        // --- Golden Carrot (Level End) ---
+        let distX = Math.abs((player.x + player.width/2) - goldenCarrot.x);
+        let distY = Math.abs((player.y + player.height/2) - goldenCarrot.y);
+        if (distX < player.width/2 + goldenCarrot.radius && distY < player.height/2 + goldenCarrot.radius) {
+            gameState = 'LEVELCLEAR';
+            levelClearScreen.classList.remove('hidden');
+        }
+
+        // --- Game Over / Parachute Fall ---
+        if (player.y > canvas.height) {
+            if (hasParachute) {
+                // מפעילים את המצנח פעם אחת כאשר הארנב מגיע לתחתית המסך
+                hasParachute = false;
+                isParachuting = true;
+                
+                // הוא ממשיך ליפול מהנקודה שבה הוא נמצא (לא מאפסים אותו למעלה)
+                // המהירות תהפוך לאיטית והמצלמה תרדוף אחריו כלפי מטה בזכות הלוגיקה החדשה של המצלמה למעלה
+                player.vy = 1.5;
+                // כדי למנוע היפסלות מידית בפריים הבא, ניתן לו קפיצה קטנה פנימה חזרה כדי שהמצלמה תתפוס אותו
+                player.y = canvas.height - player.height - 1; 
+
+            } else if (!isParachuting) {
+                // רק נפסלים אם אין מצנח ולא נמצאים כרגע בתהליך צניחה
+                gameOver('fall');
+            } else if (isParachuting) {
+                // אם הוא עם מצנח וכבר נופל מעבר למסך
+                // זה יקרה רק אם הרצפה הראשונה כבר עלתה למסך והוא עדיין הצליח ליפול מתחתיה
+                gameOver('fall');
+            }
+        }
+
+        render();
+        animationId = requestAnimationFrame(update);
+    }
+
+    function render() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // --- ציור משטחים חתולים ---
+        for (let p of platforms) {
+            if (p.isCat) {
+                ctx.fillStyle = '#e74c3c'; // אדום
+                ctx.beginPath();
+                ctx.roundRect(p.x, p.y, p.width, p.height, [8]);
+                ctx.fill();
+                
+                ctx.fillStyle = '#c0392b';
+                ctx.beginPath();
+                ctx.roundRect(p.x + 2, p.y + 6, p.width - 4, p.height - 4, [0, 0, 8, 8]);
+                ctx.fill();
+
+                // ציור החתול יושב על המשטח
+                ctx.font = '24px Arial';
+                ctx.fillText('🐈', p.x + p.width/2, p.y - 10);
+            } else {
+                ctx.fillStyle = '#2ecc71';
+                ctx.beginPath();
+                ctx.roundRect(p.x, p.y, p.width, p.height, [8]);
+                ctx.fill();
+                
+                if (!p.isGround) {
+                    ctx.fillStyle = '#8e44ad';
+                    ctx.beginPath();
+                    ctx.roundRect(p.x + 2, p.y + 6, p.width - 4, p.height - 4, [0, 0, 8, 8]);
+                    ctx.fill();
+                }
+            }
+        }
+        
+        // --- ציור גזרים ---
+        ctx.font = '24px Arial';
+        for (let c of carrots) {
+            if (!c.collected) {
+                let hover = Math.sin(Date.now() / 200 + c.x) * 3;
+                ctx.fillText('🥕', c.x, c.y + hover);
+            }
+        }
+
+        // --- ציור מצנחים לאיסוף ---
+        ctx.font = '28px Arial';
+        for (let p of parachutes) {
+            if (!p.collected) {
+                let hover = Math.sin(Date.now() / 200 + p.x) * 4;
+                ctx.fillText('🪂', p.x, p.y + hover);
+            }
+        }
+        
+        // --- ציור דגים לאיסוף ---
+        for (let f of fishes) {
+            if (!f.collected) {
+                let hover = Math.cos(Date.now() / 200 + f.x) * 4;
+                ctx.fillText('🐟', f.x, f.y + hover);
+            }
+        }
+        
+        // --- ציור גזר הזהב (המטרה) ---
+        let pulse = Math.sin(Date.now() / 150) * 8;
+        ctx.save();
+        ctx.font = '70px Arial';
+        ctx.shadowColor = '#f1c40f'; 
+        ctx.shadowBlur = 30 + Math.abs(pulse) * 4;
+        ctx.fillText('🏆', goldenCarrot.x, goldenCarrot.y + pulse);
+        
+        ctx.font = '45px Arial';
+        ctx.fillText('🥕', goldenCarrot.x, goldenCarrot.y + pulse);
+        ctx.restore();
+        
+        // --- ציור השחקן (הארנב) ---
+        ctx.save();
+        ctx.translate(player.x + player.width/2, player.y + player.height/2);
+        
+        if (player.vx < -0.5) ctx.scale(-1, 1);
+        
+        if (!player.grounded && !isParachuting) {
+             if (player.vy < 0) ctx.scale(0.9, 1.1);
+             else ctx.scale(1.1, 0.9);
+        }
+        
+        ctx.font = '36px Arial';
+        ctx.fillText('🐇', 0, 0);
+
+        // ציור מצנח פתוח מעל הארנב
+        if (isParachuting) {
+            ctx.font = '45px Arial';
+            ctx.fillText('🪂', 0, -35); // מצנח פתוח גדול מעליו
+        } else {
+            // אם יש מצנח ואו דג מגן
+            if (hasParachute || hasFish) {
+                ctx.scale(player.vx < -0.5 ? -1 : 1, 1); // ביטול היפוך הארנב 
+                ctx.font = '16px Arial';
+                if (hasParachute) ctx.fillText('🪂', 15, -15);
+                if (hasFish) ctx.fillText('🐟', hasParachute ? 35 : 15, -15);
+            }
+        }
+
+        ctx.restore();
+    }
+    
+    initLevel();
+    render();
+</script>
+</body>
+</html>
