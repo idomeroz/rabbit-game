@@ -99,7 +99,7 @@
             justify-content: space-between;
             padding: 0 20px;
             box-sizing: border-box;
-            z-index: 15;
+            z-index: 100; /* הועלה ל-100 כדי שיהיה מעל הכל */
             pointer-events: none; /* Only buttons should catch events */
         }
         .control-group {
@@ -150,6 +150,7 @@
     <canvas id="gameCanvas" width="400" height="600"></canvas>
     
     <!-- Mobile Controls -->
+    <!-- הועבר פנימה לתוך ה-gameContainer כדי שיופיע מעל הקנבס -->
     <div id="mobileControls" class="hidden">
         <div class="control-group">
             <div id="btnLeft" class="d-btn">⬅️</div>
